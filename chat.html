@@ -8,18 +8,35 @@
     body { font-family: system-ui, sans-serif; max-width: 750px; margin: 2rem auto; padding: 0 1rem; }
     .controls { display: flex; gap: 0.5rem; margin-bottom: 0.5rem; flex-wrap: wrap; }
     select, input, button { font-size: 0.95rem; padding: 0.45rem 0.6rem; }
+    #server-url { width: 200px; }
     select { flex: 1; min-width: 200px; }
     button { cursor: pointer; background: #333; color: #fff; border: none; border-radius: 4px; }
     button:hover { background: #555; }
+    button:disabled { background: #999; cursor: not-allowed; }
     #mcp-toggle { display: flex; align-items: center; gap: 0.4rem; font-size: 0.9rem; margin-bottom: 0.5rem; }
     #mcp-panel { border: 1px solid #ccc; border-radius: 6px; padding: 0.75rem; margin-bottom: 0.75rem; display: none; }
     #mcp-panel.open { display: block; }
     #mcp-panel label { font-size: 0.85rem; display: block; margin-bottom: 0.25rem; }
-    #mcp-json { width: 100%; font-family: monospace; font-size: 0.85rem; min-height: 80px; resize: vertical; }
+    .integration-row { display: flex; gap: 0.4rem; align-items: center; margin-bottom: 0.4rem; flex-wrap: wrap; }
+    .integration-row select { flex: 1; min-width: 180px; }
+    .integration-row input { flex: 1; min-width: 120px; padding: 0.35rem 0.5rem; font-size: 0.85rem; }
+    .integration-row button { padding: 0.35rem 0.6rem; font-size: 0.8rem; background: #c0392b; border-radius: 4px; }
+    .integration-row button:hover { background: #e74c3c; }
+    .integration-config { margin-left: 1rem; margin-bottom: 0.5rem; font-size: 0.85rem; display: none; }
+    .integration-config.open { display: block; }
+    .integration-config input, .integration-config textarea {
+      width: 100%; padding: 0.35rem 0.5rem; font-size: 0.85rem; margin-bottom: 0.25rem;
+      border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;
+    }
+    .integration-config textarea { min-height: 60px; resize: vertical; font-family: monospace; }
+    .integrations-list { margin-top: 0.5rem; }
+    .integrations-list .item { background: #f6f8fa; border: 1px solid #ddd; border-radius: 4px; padding: 0.4rem 0.6rem; margin-bottom: 0.3rem; font-size: 0.85rem; display: flex; justify-content: space-between; align-items: center; }
+    .integrations-list .item .remove-btn { background: none; border: none; color: #c0392b; cursor: pointer; font-size: 1.1rem; padding: 0 0.3rem; }
     #log { border: 1px solid #ccc; border-radius: 8px; padding: 1rem; min-height: 200px; margin-bottom: 0.75rem; white-space: pre-wrap; }
     .msg { margin-bottom: 0.6rem; }
-    .msg.user { color: #0057b7; }
+    .msg.user { color: #0057b7; font-weight: 500; }
     .msg.assistant { color: #1a1a1a; }
+    .msg.reasoning { color: #555; font-size: 0.85rem; background: #f6f8fa; border-left: 3px solid #888; padding: 0.4rem 0.6rem; border-radius: 3px; }
     .msg.tool { color: #7a5c00; font-size: 0.85rem; background: #fffbe6; padding: 0.4rem; border-radius: 4px; }
     .msg.stats { color: #888; font-size: 0.8rem; margin-top: 0.5rem; }
     .input-row { display: flex; gap: 0.5rem; }
@@ -31,18 +48,39 @@
   <h1>LM Studio Chat <small style="font-size:0.6em;color:#888">+ MCP</small></h1>
 
   <div class="controls">
+    <input id="server-url" value="http://localhost:1235" placeholder="http://localhost:1235" title="LM Studio API Base URL" />
     <select id="model"><option>Loading models…</option></select>
-    <button id="refresh">↻</button>
+    <button id="refresh" title="Reload Models">↻</button>
   </div>
 
   <label id="mcp-toggle">
     <input type="checkbox" id="mcp-enabled" /> Enable MCP integrations
   </label>
   <div id="mcp-panel">
-    <label>Integrations (JSON array):</label>
-    <textarea id="mcp-json" spellcheck="false">[
-  { "type": "plugin", "id": "mcp/playwright", "allowed_tools": ["browser_navigate"] }
-]</textarea>
+    <label>Integrations:</label>
+
+    <!-- Add integration row -->
+    <div class="integration-row">
+      <select id="integration-type">
+        <option value="">— Select type —</option>
+        <option value="plugin">Plugin (e.g. playwright)</option>
+        <option value="mcp_server" selected>Custom MCP Server</option>
+      </select>
+      <!-- Plugin config -->
+      <div id="config-plugin" class="integration-config">
+        <input type="text" id="plugin-id" placeholder="Plugin ID (e.g. mcp/playwright)" />
+        <textarea id="plugin-tools" placeholder='Allowed tools, comma-separated (e.g. browser_navigate,browser_click)'></textarea>
+      </div>
+      <!-- MCP Server config -->
+      <div id="config-mcp_server" class="integration-config open">
+        <input type="text" id="mcp-server-name" placeholder="Server name (e.g. WebSearch)" value="WebSearch" />
+        <input type="text" id="mcp-server-url" placeholder="MCP Server URL (e.g. http://localhost:3001)" />
+      </div>
+      <button id="add-integration">+ Add</button>
+    </div>
+
+    <!-- List of added integrations -->
+    <div class="integrations-list" id="integrations-list"></div>
   </div>
 
   <div id="log"></div>
@@ -53,40 +91,121 @@
   <div id="status"></div>
 
   <script>
-    const BASE = "http://localhost:1234";
+    const serverUrlInput = document.getElementById("server-url");
     const modelSel = document.getElementById("model");
+    const refreshBtn = document.getElementById("refresh");
     const mcpEnabled = document.getElementById("mcp-enabled");
     const mcpPanel = document.getElementById("mcp-panel");
-    const mcpJson = document.getElementById("mcp-json");
+    const integrationTypeSel = document.getElementById("integration-type");
+    const configPlugin = document.getElementById("config-plugin");
+    const configMcpServer = document.getElementById("config-mcp_server");
+    const addIntegrationBtn = document.getElementById("add-integration");
+    const integrationsListEl = document.getElementById("integrations-list");
+
+    // Stored integrations array (built from the UI)
+    let integrations = [];
+
+    // Show/hide config panels based on selected type
+    integrationTypeSel.addEventListener("change", () => {
+      const val = integrationTypeSel.value;
+      configPlugin.classList.toggle("open", val === "plugin");
+      configMcpServer.classList.toggle("open", val === "mcp_server");
+    });
     const log = document.getElementById("log");
     const input = document.getElementById("input");
+    const sendBtn = document.getElementById("send");
     const status = document.getElementById("status");
+
+    // Load saved server URL preference if available
+    const savedUrl = localStorage.getItem("lmstudio_server_url");
+    if (savedUrl) {
+      serverUrlInput.value = savedUrl;
+    }
+
+    function getServerBase() {
+      return (serverUrlInput.value.trim() || "http://localhost:1235").replace(/\/+$/, "");
+    }
+
+    serverUrlInput.addEventListener("change", () => {
+      localStorage.setItem("lmstudio_server_url", getServerBase());
+      loadModels();
+    });
+
+    async function fetchModelsFromUrl(base) {
+      const res = await fetch(`${base}/api/v1/models`);
+      if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+      return await res.json();
+    }
 
     // --- Model list ---
     async function loadModels() {
       modelSel.innerHTML = '<option>Loading…</option>';
+      status.textContent = 'Connecting to LM Studio…';
+
+      let base = getServerBase();
+      let data = null;
+
       try {
-        const res = await fetch(`${BASE}/api/v1/models`);
-        const data = await res.json();
-        const llms = data.models.filter(m => m.type === "llm");
+        data = await fetchModelsFromUrl(base);
+      } catch (err) {
+        // Smart fallback: try switching between 1235 and 1234
+        const fallback = base.includes(":1234")
+          ? base.replace(":1234", ":1235")
+          : base.includes(":1235")
+            ? base.replace(":1235", ":1234")
+            : null;
+
+        if (fallback) {
+          try {
+            data = await fetchModelsFromUrl(fallback);
+            base = fallback;
+            serverUrlInput.value = base;
+            localStorage.setItem("lmstudio_server_url", base);
+          } catch (_) {
+            // Keep original error if fallback also failed
+          }
+        }
+
+        if (!data) {
+          modelSel.innerHTML = '<option>Failed to load models</option>';
+          status.textContent = `Model list error from ${base}: ${err.message}. Ensure LM Studio local server is started.`;
+          return;
+        }
+      }
+
+      try {
+        const llms = (data.models || []).filter(m => m.type === "llm");
         modelSel.innerHTML = "";
         if (!llms.length) {
           modelSel.innerHTML = '<option>No LLM models found</option>';
+          status.textContent = `Connected to ${base}, but no LLM models were returned.`;
           return;
         }
+
+        let selectedKey = null;
         for (const m of llms) {
           const opt = document.createElement("option");
           opt.value = m.key;
-          opt.textContent = m.display_name || m.key;
+          const isLoaded = Array.isArray(m.loaded_instances) && m.loaded_instances.length > 0;
+          opt.textContent = `${m.display_name || m.key}${isLoaded ? " (Loaded)" : ""}`;
+          if (isLoaded && !selectedKey) {
+            selectedKey = m.key;
+          }
           modelSel.appendChild(opt);
         }
+
+        if (selectedKey) {
+          modelSel.value = selectedKey;
+        }
+
+        status.textContent = `Connected to ${base} (${llms.length} model${llms.length === 1 ? "" : "s"} found)`;
       } catch (e) {
         modelSel.innerHTML = '<option>Failed to load models</option>';
-        status.textContent = `Model list error: ${e.message}`;
+        status.textContent = `Model list parse error: ${e.message}`;
       }
     }
 
-    document.getElementById("refresh").addEventListener("click", loadModels);
+    refreshBtn.addEventListener("click", loadModels);
     loadModels();
 
     // --- MCP toggle ---
@@ -106,27 +225,31 @@
     async function send() {
       const text = input.value.trim();
       if (!text) return;
+
+      const model = modelSel.value;
+      if (!model || model.startsWith("Failed") || model.startsWith("Loading") || model.startsWith("No LLM")) {
+        status.textContent = "Please select a valid model first.";
+        return;
+      }
+
+      const base = getServerBase();
       input.value = "";
       addMsg("user", `You: ${text}`);
-      status.textContent = "Waiting…";
+      status.textContent = "Waiting for response…";
+      sendBtn.disabled = true;
 
       const body = {
-        model: modelSel.value,
+        model: model,
         input: text,
         context_length: 8000
       };
 
       if (mcpEnabled.checked) {
-        try {
-          body.integrations = JSON.parse(mcpJson.value);
-        } catch {
-          status.textContent = "MCP JSON parse error – check your integrations array.";
-          return;
-        }
+        body.integrations = integrations;
       }
 
       try {
-        const res = await fetch(`${BASE}/api/v1/chat`, {
+        const res = await fetch(`${base}/api/v1/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body)
@@ -134,13 +257,21 @@
 
         const data = await res.json();
 
-        // Render output items (messages + tool calls)
-        for (const item of data.output) {
-          if (item.type === "tool_call") {
-            const args = JSON.stringify(item.arguments, null, 2);
-            addMsg("tool", `🔧 Tool: ${item.tool}\n   Args: ${args}\n   Result: ${String(item.output).slice(0, 300)}`);
-          } else if (item.type === "message") {
-            addMsg("assistant", `Assistant: ${item.content}`);
+        if (data.error) {
+          throw new Error(data.error.message || JSON.stringify(data.error));
+        }
+
+        // Render output items (messages, tool calls, reasoning)
+        if (Array.isArray(data.output)) {
+          for (const item of data.output) {
+            if (item.type === "tool_call") {
+              const args = JSON.stringify(item.arguments, null, 2);
+              addMsg("tool", `🔧 Tool: ${item.tool}\n   Args: ${args}\n   Result: ${String(item.output).slice(0, 300)}`);
+            } else if (item.type === "reasoning") {
+              addMsg("reasoning", `💭 Reasoning:\n${item.content}`);
+            } else if (item.type === "message") {
+              addMsg("assistant", `Assistant: ${item.content}`);
+            }
           }
         }
 
@@ -157,11 +288,74 @@
         status.textContent = "";
       } catch (err) {
         status.textContent = `Error: ${err.message}`;
+      } finally {
+        sendBtn.disabled = false;
       }
     }
 
-    document.getElementById("send").addEventListener("click", send);
+    sendBtn.addEventListener("click", send);
     input.addEventListener("keydown", e => { if (e.key === "Enter") send(); });
+
+    // --- Integration management ---
+    function renderIntegrationsList() {
+      integrationsListEl.innerHTML = "";
+      if (!integrations.length) return;
+      for (let i = 0; i < integrations.length; i++) {
+        const item = integrations[i];
+        let desc = "";
+        if (item.type === "plugin") {
+          desc = `🔌 Plugin: ${item.id} — tools: ${(item.allowed_tools || []).join(", ")}`;
+        } else if (item.type === "mcp_server") {
+          desc = `⚙️ MCP Server: ${item.name}${item.url ? " @ " + item.url : ""}`;
+        }
+        const div = document.createElement("div");
+        div.className = "item";
+        div.innerHTML = `<span>${desc}</span><button class="remove-btn" data-index="${i}" title="Remove">✕</button>`;
+        integrationsListEl.appendChild(div);
+      }
+    }
+
+    function addIntegration() {
+      const type = integrationTypeSel.value;
+      if (!type) return;
+
+      let entry = { type };
+
+      if (type === "plugin") {
+        const id = document.getElementById("plugin-id").value.trim();
+        const toolsRaw = document.getElementById("plugin-tools").value.trim();
+        if (!id) { status.textContent = "Please enter a Plugin ID."; return; }
+        entry.id = id;
+        entry.allowed_tools = toolsRaw ? toolsRaw.split(/[,\s]+/).filter(Boolean) : [];
+      } else if (type === "mcp_server") {
+        const name = document.getElementById("mcp-server-name").value.trim();
+        const url = document.getElementById("mcp-server-url").value.trim();
+        if (!name) { status.textContent = "Please enter a Server name."; return; }
+        entry.name = name;
+        if (url) entry.url = url;
+      }
+
+      integrations.push(entry);
+      renderIntegrationsList();
+      integrationTypeSel.value = "";
+      configPlugin.classList.remove("open");
+      configMcpServer.classList.remove("open");
+      status.textContent = `Added ${type}: ${entry.name || entry.id}`;
+    }
+
+    function removeIntegration(index) {
+      integrations.splice(index, 1);
+      renderIntegrationsList();
+    }
+
+    // Delegate clicks on the list for remove buttons
+    integrationsListEl.addEventListener("click", e => {
+      if (e.target.classList.contains("remove-btn")) {
+        removeIntegration(parseInt(e.target.dataset.index, 10));
+      }
+    });
+
+    addIntegrationBtn.addEventListener("click", addIntegration);
   </script>
 </body>
-</html>   
+</html>
