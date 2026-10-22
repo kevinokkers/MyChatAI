@@ -167,7 +167,7 @@
   const progressBar = document.getElementById("progress-bar");
   const progressText = document.getElementById("progress-text");
   let last_response_id = null;
-  let streamData = false;
+  let streamData = true;
     const mcpPanel = document.getElementById("mcp-panel");
     const integrationTypeSel = document.getElementById("integration-type");
     const configPlugin = document.getElementById("config-plugin");
@@ -780,6 +780,28 @@
     speechSynthesis.onvoiceschanged = loadTTSVoices;
     window.addEventListener("load", loadTTSVoices);
 
+    // --- TTS + Mic integration ---
+    let isTTSSpeaking = false;
+    let wasRecordingBeforeTTS = false; // Only resume if we were actually recording before TTS started
+    let isPausingForTTS = false;
+
+    function pauseRecognition() {
+      if (recognition && isRecording) {
+        isPausingForTTS = true; // Prevent onend from calling stopListening()
+        try { recognition.stop(); } catch(e) {}
+        status.textContent = "⏸️ TTS speaking… mic paused";
+      }
+    }
+
+    function resumeRecognition() {
+      if (isTTSSpeaking) return; // Still speaking, don't restart yet
+      isPausingForTTS = false;
+      // Only resume if user was actively recording (transcribing), not just clicked send button
+      if (!wasRecordingBeforeTTS) return;
+      startListening();
+      status.textContent = "🎤 Listening… click the mic to stop.";
+    }
+
     function speakText(text, btn) {
       // Stop any current speech
       speechSynthesis.cancel();
@@ -791,6 +813,13 @@
       
       const utterance = new SpeechSynthesisUtterance(text);
       currentUtterance = utterance;
+      isTTSSpeaking = true;
+
+      // Track whether we were recording so we only resume if user was transcribing
+      wasRecordingBeforeTTS = isRecording;
+
+      // Pause mic while TTS speaks (prevents picking up AI voice)
+      pauseRecognition();
       
       // Set voice if available
       if (ttsVoiceIndex >= 0) {
@@ -807,19 +836,25 @@
       utterance.volume = 1.0;
       
       utterance.onend = () => {
+        isTTSSpeaking = false;
         if (btn) {
           btn.classList.remove("speaking");
           btn.innerHTML = "🔊";
         }
         currentUtterance = null;
+        // Resume mic after TTS finishes
+        resumeRecognition();
       };
       
       utterance.onerror = () => {
+        isTTSSpeaking = false;
         if (btn) {
           btn.classList.remove("speaking");
           btn.innerHTML = "🔊";
         }
         currentUtterance = null;
+        // Resume mic on error too
+        resumeRecognition();
       };
       
       speechSynthesis.speak(utterance);
@@ -828,6 +863,21 @@
     // --- Voice transcription ---
     let recognition = null;
     let isRecording = false;
+    let silenceTimer = null;
+    const SILENCE_THRESHOLD_MS = 5000; // Auto-send after 5 seconds of silence
+
+    function resetSilenceTimer() {
+      if (silenceTimer) clearTimeout(silenceTimer);
+      silenceTimer = setTimeout(() => {
+        // User stopped speaking for 5 seconds - auto-send the text
+        const text = input.value.trim();
+        if (text && isRecording) {
+          status.textContent = "⏳ Silence detected, sending message…";
+          stopListening();
+          send();
+        }
+      }, SILENCE_THRESHOLD_MS);
+    }
 
     function startListening() {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -849,6 +899,8 @@
           const transcript = event.results[i][0].transcript;
           if (event.results[i].isFinal) {
             finalTranscript += transcript + " ";
+            // Reset silence timer on new final result
+            resetSilenceTimer();
           } else {
             interim += transcript;
           }
@@ -870,9 +922,12 @@
       isRecording = true;
       micBtn.classList.add("recording");
       status.textContent = "🎤 Listening… click the mic to stop.";
+      // Start the silence timer - will auto-send after 5 seconds of no speech
+      resetSilenceTimer();
     }
 
     function stopListening() {
+      if (silenceTimer) clearTimeout(silenceTimer);
       if (recognition) {
         recognition.stop();
         recognition = null;
