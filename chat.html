@@ -105,7 +105,10 @@
     <input type="checkbox" id="stateless-enabled" /> Stateless
   </label>
   <label id="stream-data-toggle">
-    <input type="checkbox" id="stream-data-enabled" /> Stream Data
+    <input type="checkbox" id="stream-data-enabled" checked/> Stream Data
+  </label>
+  <label id="debug-toggle">
+    <input type="checkbox" id="debug-enabled" /> Debug (console log)
   </label>
   <label id="mcp-toggle">
     <input type="checkbox" id="mcp-enabled" /> Enable MCP integrations
@@ -156,6 +159,7 @@
     const serverUrlInput = document.getElementById("server-url");
     const modelSel = document.getElementById("model");
     const refreshBtn = document.getElementById("refresh");
+    const debugEnabled = document.getElementById("debug-enabled");
     const mcpEnabled = document.getElementById("mcp-enabled");
   const statelessEnabled = document.getElementById("stateless-enabled");
   const streamDataEnabled = document.getElementById("stream-data-enabled");
@@ -283,6 +287,13 @@
       mcpPanel.classList.toggle("open", mcpEnabled.checked);
     });
 
+    // --- Debug toggle ---
+    debugEnabled.addEventListener("change", () => {
+      if (debugEnabled.checked) {
+        console.log('Debug mode enabled');
+      }
+    });
+
     // --- Stream Data toggle ---
     streamDataEnabled.addEventListener("change", () => {
       streamData = streamDataEnabled.checked;
@@ -311,6 +322,7 @@
     // Streaming message helpers
     let streamingContent = null;
     let streamingDiv = null;
+    let streamingSpokenIndex = 0; // Track how many chars have been spoken during streaming
     
     // Streaming reasoning helpers
     let reasoningContent = "";
@@ -341,11 +353,17 @@
 
     function finalizeStreamingMessage() {
       if (streamingDiv) {
+        // Speak any remaining unspoken content
+        if (document.getElementById("tts-enabled").checked && streamingSpokenIndex < streamingContent.length) {
+          const remaining = `Assistant: ${streamingContent.slice(streamingSpokenIndex)}`;
+          speakText(remaining, null);
+        }
         // Set up the speak button with final content
         const btn = streamingDiv.querySelector(".speak-btn");
         if (btn && streamingContent) {
           btn.onclick = () => speakText(`Assistant: ${streamingContent}`, btn);
         }
+        streamingSpokenIndex = 0; // Reset for next message
         streamingDiv = null;
       }
     }
@@ -481,11 +499,11 @@
             // LM Studio SSE format: data lines start with "data:" prefix
             if (line.startsWith("data:")) line = line.slice(5).trim();
             let msg;
-            try { msg = JSON.parse(line); } catch (_) { 
-              console.log('Failed to parse:', line);
-              continue; 
+            try { msg = JSON.parse(line); } catch (_) {
+              if (debugEnabled.checked) console.log('Failed to parse:', line);
+              continue;
             }
-            console.log('Parsed message type:', msg.type, msg);
+            if (debugEnabled.checked) console.log('Parsed message type:', msg.type, msg);
             lastParsedMsg = msg;
             if (!msg.type) continue;
             
@@ -580,6 +598,24 @@
               streamingContent += msg.content;
               // Update or create the assistant message div with accumulated content
               updateStreamingMessage(`Assistant: ${streamingContent}`);
+              
+              // Incremental TTS: speak once we have ~15 unspoken words
+              if (document.getElementById("tts-enabled").checked) {
+                const unspoken = streamingContent.slice(streamingSpokenIndex);
+                const wordCount = unspoken.trim().split(/\s+/).filter(w => w.length > 0).length;
+                if (wordCount >= 15) {
+                  // Find a good break point (prefer sentence boundary)
+                  let speakEnd = streamingSpokenIndex + unspoken.length;
+                  const lastSentenceBreak = unspoken.lastIndexOf('. ');
+                  const lastPeriod = unspoken.lastIndexOf('.');
+                  if (lastPeriod > 0 && lastPeriod < unspoken.length - 2) {
+                    speakEnd = streamingSpokenIndex + lastPeriod + 1; // include the period
+                  }
+                  const textToSpeak = `Assistant: ${streamingContent.slice(streamingSpokenIndex, speakEnd)}`;
+                  streamingSpokenIndex = speakEnd;
+                  speakText(textToSpeak, null);
+                }
+              }
             } else if (msg.type === "message.end") {
               // Finalize the streamed message
               if (streamingContent) {
@@ -604,7 +640,7 @@
               // Capture response_id from chat.end for context retention
               if (msg.result && msg.result.response_id) {
                 last_response_id_local = msg.result.response_id;
-                console.log('Response ID captured:', msg.result.response_id);
+                if (debugEnabled.checked) console.log('Response ID captured:', msg.result.response_id);
               }
             }
           }
@@ -726,7 +762,7 @@
         ttsVoiceIndex = selectedIndex;
         const voiceName = voices[selectedIndex].name;
         const isNeural = voiceName.toLowerCase().includes("neural") || voiceName.toLowerCase().includes("online");
-        console.log(`TTS: Selected voice #${selectedIndex}: ${voiceName} (${isNeural ? 'Neural ⭐' : 'Standard'})`);
+        if (debugEnabled.checked) console.log(`TTS: Selected voice #${selectedIndex}: ${voiceName} (${isNeural ? 'Neural ⭐' : 'Standard'})`);
       }
       
       // Save selection when changed
@@ -734,7 +770,7 @@
         ttsVoiceIndex = parseInt(select.value);
         localStorage.setItem("tts-voice-index", select.value);
         const voices = speechSynthesis.getVoices();
-        if (voices[ttsVoiceIndex]) {
+        if (voices[ttsVoiceIndex] && debugEnabled.checked) {
           console.log(`TTS: Changed to voice #${ttsVoiceIndex}: ${voices[ttsVoiceIndex].name}`);
         }
       });
