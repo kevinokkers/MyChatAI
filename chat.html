@@ -484,6 +484,20 @@
               progressBar.style.width = `${percent}%`;
               progressText.textContent = `${percent}%`;
               progressContainer.style.display = "block";
+            } else if (msg.type === "prompt_processing.progress") {
+              // Handle prompt processing progress
+              const progress = msg.progress || 0;
+              const percent = Math.round(progress * 100);
+              progressBar.style.width = `${percent}%`;
+              progressText.textContent = `${percent}%`;
+              progressContainer.style.display = "block";
+            } else if (msg.type === "prompt_processing.end") {
+              // Hide progress bar when prompt processing completes
+              setTimeout(() => {
+                progressContainer.style.display = "none";
+                progressBar.style.width = "0%";
+                progressText.textContent = "0%";
+              }, 500);
             } else if (msg.type === "model_load.end") {
               // Hide progress bar when loading completes
               setTimeout(() => {
