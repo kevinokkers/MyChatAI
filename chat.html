@@ -438,7 +438,6 @@
       if (!text) return;
 
       status.textContent = "⏳";
-      last_response_id = null;
       streamingContent = null;
       streamingDiv = null;
       reasoningContent = "";
@@ -601,6 +600,12 @@
             } else if (msg.type === "stats") {
               const s = msg;
               addMsg("stats", `⏱ ${s.time_to_first_token_seconds?.toFixed(2)}s TTFT · ${s.tokens_per_second?.toFixed(1)} tok/s · ${s.input_tokens} in / ${s.total_output_tokens} out`);
+            } else if (msg.type === "chat.end") {
+              // Capture response_id from chat.end for context retention
+              if (msg.result && msg.result.response_id) {
+                last_response_id_local = msg.result.response_id;
+                console.log('Response ID captured:', msg.result.response_id);
+              }
             }
           }
         }
