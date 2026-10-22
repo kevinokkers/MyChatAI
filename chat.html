@@ -37,6 +37,13 @@
     .msg.user { color: #0057b7; font-weight: 500; }
     .msg.assistant { color: #1a1a1a; }
     .msg.reasoning { color: #555; font-size: 0.85rem; background: #f6f8fa; border-left: 3px solid #888; padding: 0.4rem 0.6rem; border-radius: 3px; }
+    .reasoning-container { margin-bottom: 0.6rem; }
+    .reasoning-toggle { background: #e9ecef; border: 1px solid #ccc; border-radius: 4px; padding: 0.4rem 0.6rem; cursor: pointer; font-size: 0.85rem; color: #555; width: 100%; text-align: left; display: flex; align-items: center; gap: 0.5rem; }
+    .reasoning-toggle:hover { background: #dee2e6; }
+    .reasoning-toggle .arrow { transition: transform 0.2s ease; }
+    .reasoning-toggle.expanded .arrow { transform: rotate(90deg); }
+    .reasoning-content { display: none; padding: 0.5rem; background: #f8f9fa; border: 1px solid #dee2e6; border-top: none; border-radius: 0 0 4px 4px; font-size: 0.85rem; color: #666; max-height: 300px; overflow-y: auto; white-space: pre-wrap; line-height: 1.5; }
+    .reasoning-content.visible { display: block; }
     .msg.tool { color: #7a5c00; font-size: 0.85rem; background: #fffbe6; padding: 0.4rem; border-radius: 4px; }
     .msg.stats { color: #888; font-size: 0.8rem; margin-top: 0.5rem; }
     .input-row { display: flex; gap: 0.4rem; align-items: center; }
@@ -304,6 +311,10 @@
     // Streaming message helpers
     let streamingContent = null;
     let streamingDiv = null;
+    
+    // Streaming reasoning helpers
+    let reasoningContent = "";
+    let reasoningContainer = null;
 
     function updateStreamingMessage(text) {
       if (!streamingDiv) {
@@ -430,6 +441,8 @@
       last_response_id = null;
       streamingContent = null;
       streamingDiv = null;
+      reasoningContent = "";
+      reasoningContainer = null;
       progressContainer.style.display = "none";
       let reader = null, decoder = null;
       try {
@@ -505,6 +518,56 @@
                 progressBar.style.width = "0%";
                 progressText.textContent = "0%";
               }, 500);
+            }
+            
+            // Handle reasoning streaming
+            if (msg.type === "reasoning.delta" && msg.content !== undefined) {
+              if (!reasoningContainer) {
+                // Create collapsible reasoning container
+                reasoningContainer = document.createElement("div");
+                reasoningContainer.className = "reasoning-container";
+                
+                // Content div (declare before event listener)
+                const contentDiv = document.createElement("div");
+                contentDiv.className = "reasoning-content";
+                
+                // Toggle button
+                const toggleBtn = document.createElement("button");
+                toggleBtn.className = "reasoning-toggle";
+                toggleBtn.innerHTML = '<span class="arrow">▶</span> <span>Thinking...</span>';
+                toggleBtn.addEventListener("click", () => {
+                  toggleBtn.classList.toggle("expanded");
+                  contentDiv.classList.toggle("visible");
+                });
+                
+                reasoningContainer.appendChild(toggleBtn);
+                reasoningContainer.appendChild(contentDiv);
+                log.appendChild(reasoningContainer);
+              }
+              
+              reasoningContent += msg.content;
+              // Update the content div
+              const contentDiv = reasoningContainer.querySelector(".reasoning-content");
+              if (contentDiv) {
+                contentDiv.textContent = reasoningContent;
+                log.scrollTop = log.scrollHeight;
+              }
+            } else if (msg.type === "reasoning.end") {
+              // Finalize reasoning
+              if (reasoningContainer) {
+                const toggleBtn = reasoningContainer.querySelector(".reasoning-toggle");
+                if (toggleBtn) {
+                  toggleBtn.innerHTML = '<span class="arrow">▶</span> <span>Thinking complete</span>';
+                }
+                // Auto-expand to show final content
+                const contentDiv = reasoningContainer.querySelector(".reasoning-content");
+                if (contentDiv && !contentDiv.classList.contains("visible")) {
+                  contentDiv.classList.add("visible");
+                  toggleBtn.classList.add("expanded");
+                }
+                reasoningContainer = null;
+              }
+              reasoningContent = "";
             }
             
             // Handle streaming deltas
