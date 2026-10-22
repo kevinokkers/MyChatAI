@@ -142,6 +142,7 @@
     const mcpEnabled = document.getElementById("mcp-enabled");
   const statelessEnabled = document.getElementById("stateless-enabled");
   let last_response_id = null;
+  let streamData = false;
     const mcpPanel = document.getElementById("mcp-panel");
     const integrationTypeSel = document.getElementById("integration-type");
     const configPlugin = document.getElementById("config-plugin");
@@ -281,6 +282,44 @@
       log.scrollTop = log.scrollHeight;
     }
 
+    // Streaming message helpers
+    let streamingContent = null;
+    let streamingDiv = null;
+
+    function updateStreamingMessage(text) {
+      if (!streamingDiv) {
+        // Create a new assistant message div for streaming
+        streamingDiv = document.createElement("div");
+        streamingDiv.className = "msg assistant";
+        const btn = document.createElement("button");
+        btn.className = "speak-btn";
+        btn.innerHTML = "🔊";
+        btn.title = "Read aloud";
+        // We'll update the button's click handler at the end
+        streamingDiv.appendChild(btn);
+        log.appendChild(streamingDiv);
+      }
+      // Insert/update text before the button element
+      if (streamingDiv.firstChild && streamingDiv.firstChild.nodeType === Node.TEXT_NODE) {
+        streamingDiv.firstChild.textContent = text;
+      } else {
+        const textNode = document.createTextNode(text);
+        streamingDiv.insertBefore(textNode, streamingDiv.firstChild);
+      }
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function finalizeStreamingMessage() {
+      if (streamingDiv) {
+        // Set up the speak button with final content
+        const btn = streamingDiv.querySelector(".speak-btn");
+        if (btn && streamingContent) {
+          btn.onclick = () => speakText(`Assistant: ${streamingContent}`, btn);
+        }
+        streamingDiv = null;
+      }
+    }
+
     async function send() {
       const text = input.value.trim();
       if (!text) return;
@@ -300,7 +339,8 @@
       var body = {
         model: model,
         input: text,
-        context_length: 8000
+        context_length: 8000,
+        stream: this.streamData
       };
       if (!statelessEnabled.checked && last_response_id) {
           body.previous_response_id = last_response_id;
@@ -360,9 +400,105 @@
       }
     }
 
+    // --- Streaming send function ---
+    async function sendStreaming() {
+      const base = getServerBase();
+      const model = modelSel.value;
+      const text = input.value.trim();
+      if (!text) return;
+
+      status.textContent = "⏳";
+      last_response_id = null;
+      streamingContent = null;
+      streamingDiv = null;
+      let reader = null, decoder = null;
+      try {
+        const body = {
+          model,
+          input: text,
+          context_length: 8000,
+          stream: true
+        };
+        if (!statelessEnabled.checked && last_response_id) {
+          body.previous_response_id = last_response_id;
+        }
+        if (mcpEnabled.checked) {
+          body.integrations = integrations;
+        }
+        const res = await fetch(`${base}/api/v1/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+        reader = res.body.getReader();
+        decoder = new TextDecoder("utf-8");
+        let buffer = "";
+        let last_response_id_local = null;
+        let lastParsedMsg = null;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const parts = buffer.split("\n");
+          buffer = parts.pop() || "";
+          for (let line of parts) {
+            if (!line.trim()) continue;
+            // Skip SSE event metadata lines
+            if (line.startsWith("event:")) continue;
+            // LM Studio SSE format: data lines start with "data:" prefix
+            if (line.startsWith("data:")) line = line.slice(5).trim();
+            let msg;
+            try { msg = JSON.parse(line); } catch (_) { 
+              console.log('Failed to parse:', line);
+              continue; 
+            }
+            console.log('Parsed message type:', msg.type, msg);
+            lastParsedMsg = msg;
+            if (!msg.type) continue;
+            
+            // Handle streaming deltas
+            if (msg.type === "message.delta" && msg.content !== undefined) {
+              if (!streamingContent) streamingContent = "";
+              streamingContent += msg.content;
+              // Update or create the assistant message div with accumulated content
+              updateStreamingMessage(`Assistant: ${streamingContent}`);
+            } else if (msg.type === "message.end") {
+              // Finalize the streamed message
+              if (streamingContent) {
+                finalizeStreamingMessage();
+                streamingContent = null;
+              }
+            } else if (msg.type === "tool_call") {
+              const args = JSON.stringify(msg.arguments, null, 2);
+              addMsg("tool", `🔧 Tool: ${msg.tool}\n   Args: ${args}\n   Result: ${String(msg.output).slice(0, 300)}`);
+            } else if (msg.type === "reasoning") {
+              addMsg("reasoning", `💭 Reasoning:\n${msg.content}`);
+            } else if (msg.type === "message") {
+              const msgText = `Assistant: ${msg.content}`;
+              addMsg("assistant", msgText);
+              if (document.getElementById("tts-enabled").checked) {
+                setTimeout(() => speakText(msgText, null), 100);
+              }
+            } else if (msg.type === "stats") {
+              const s = msg;
+              addMsg("stats", `⏱ ${s.time_to_first_token_seconds?.toFixed(2)}s TTFT · ${s.tokens_per_second?.toFixed(1)} tok/s · ${s.input_tokens} in / ${s.total_output_tokens} out`);
+            }
+          }
+        }
+        if (lastParsedMsg && lastParsedMsg.response_id) last_response_id_local = lastParsedMsg.response_id;
+        last_response_id = last_response_id_local || null;
+        status.textContent = "";
+      } catch (err) {
+        status.textContent = `Error: ${err.message}`;
+      } finally {
+        sendBtn.disabled = false;
+        input.value = "";  // clear input after sending
+        reader && reader.releaseLock();
+      }
+    }
     // --- Text-to-Speech (TTS) ---
-    let ttsVoiceIndex = -1;
-    let currentUtterance = null;
+    let ttsVoiceIndex = -1;    let currentUtterance = null;
     const femaleKeywords = ["zira", "aria", "samantha", "karen", "moira", "allison", "helena", "jenny", "anna", "victoria", "female", "tessa", "fiona", "amy"];
 
     function loadTTSVoices() {
@@ -592,8 +728,14 @@
       else startListening();
     });
 
-    sendBtn.addEventListener("click", send);
-    input.addEventListener("keydown", e => { if (e.key === "Enter") send(); });
+    if(this.streamData){
+      sendBtn.addEventListener("click", sendStreaming);
+      input.addEventListener("keydown", e => { if (e.key === "Enter") sendStreaming(); });
+    }
+    else{      
+      sendBtn.addEventListener("click", send);
+      input.addEventListener("keydown", e => { if (e.key === "Enter") send(); });
+    }
 
     // --- Integration management ---
     function renderIntegrationsList() {
