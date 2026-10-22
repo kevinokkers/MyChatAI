@@ -51,6 +51,25 @@
       background: #c0392b !important;
       animation: pulse 1.2s infinite;
     }
+    .speak-btn {
+      background: none; border: 1px solid #ccc; border-radius: 50%;
+      width: 28px; height: 28px; min-width: 28px; font-size: 0.9rem;
+      cursor: pointer; display: inline-flex; align-items: center;
+      justify-content: center; margin-left: 0.4rem; transition:
+      background 0.2s, border-color 0.2s; vertical-align: middle;
+    }
+    .speak-btn:hover { background: #e8f4fd; border-color: #0057b7; }
+    .speak-btn.speaking { background: #d4edda; border-color: #28a745; }
+    #voice-select {
+      margin-left: 0.5rem;
+      padding: 0.2rem 0.4rem;
+      font-size: 0.85rem;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      background: white;
+      cursor: pointer;
+    }
+    #voice-select:focus { outline: none; border-color: #0057b7; }
     @keyframes pulse {
       0%, 100% { box-shadow: 0 0 0 0 rgba(192,57,43,0.5); }
       50% { box-shadow: 0 0 0 8px rgba(192,57,43,0); }
@@ -67,6 +86,14 @@
     <button id="refresh" title="Reload Models">↻</button>
   </div>
 
+  <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;margin-top:0.3rem">
+    <label id="tts-toggle">
+      <input type="checkbox" id="tts-enabled" checked /> 🔊 Auto-speak responses
+    </label>
+    <select id="voice-select" title="Select voice">
+      <option value="">Loading voices…</option>
+    </select>
+  </div>
   <label id="mcp-toggle">
     <input type="checkbox" id="mcp-enabled" /> Enable MCP integrations
   </label>
@@ -234,6 +261,17 @@
       const div = document.createElement("div");
       div.className = `msg ${cls}`;
       div.textContent = text;
+      
+      // Add speak button for assistant messages
+      if (cls === "assistant") {
+        const btn = document.createElement("button");
+        btn.className = "speak-btn";
+        btn.innerHTML = "🔊";
+        btn.title = "Read aloud";
+        btn.addEventListener("click", () => speakText(text, btn));
+        div.appendChild(btn);
+      }
+      
       log.appendChild(div);
       log.scrollTop = log.scrollHeight;
     }
@@ -286,7 +324,12 @@
             } else if (item.type === "reasoning") {
               addMsg("reasoning", `💭 Reasoning:\n${item.content}`);
             } else if (item.type === "message") {
-              addMsg("assistant", `Assistant: ${item.content}`);
+              const msgText = `Assistant: ${item.content}`;
+              addMsg("assistant", msgText);
+              // Auto-speak if toggle is enabled
+              if (document.getElementById("tts-enabled").checked) {
+                setTimeout(() => speakText(msgText, null), 100);
+              }
             }
           }
         }
@@ -307,6 +350,176 @@
       } finally {
         sendBtn.disabled = false;
       }
+    }
+
+    // --- Text-to-Speech (TTS) ---
+    let ttsVoiceIndex = -1;
+    let currentUtterance = null;
+    const femaleKeywords = ["zira", "aria", "samantha", "karen", "moira", "allison", "helena", "jenny", "anna", "victoria", "female", "tessa", "fiona", "amy"];
+
+    function loadTTSVoices() {
+      const voices = speechSynthesis.getVoices();
+      if (!voices.length) return;
+      
+      // Build voice selector dropdown
+      const select = document.getElementById("voice-select");
+      select.innerHTML = "";
+      
+      // Separate female and other voices, prioritize neural ones
+      let femaleNeuralVoices = [];
+      let femaleStandardVoices = [];
+      let otherEnglishVoices = [];
+      
+      for (let i = 0; i < voices.length; i++) {
+        const name = voices[i].name.toLowerCase();
+        const isFemale = femaleKeywords.some(kw => name.includes(kw));
+        const isNeural = name.includes("neural") || name.includes("online") || name.includes("dnn");
+        
+        if (voices[i].lang.startsWith("en")) {
+          if (isFemale && isNeural) femaleNeuralVoices.push(i);
+          else if (isFemale) femaleStandardVoices.push(i);
+          else otherEnglishVoices.push(i);
+        }
+      }
+      
+      // Add section header for female voices
+      const femaleGroup = document.createElement("optgroup");
+      femaleGroup.label = "👩 Female Voices";
+      
+      // Add neural female voices first (best quality)
+      if (femaleNeuralVoices.length) {
+        const neuralHeader = document.createElement("option");
+        neuralHeader.value = "-1";
+        neuralHeader.textContent = "── Neural (Best Quality) ──";
+        neuralHeader.disabled = true;
+        femaleGroup.appendChild(neuralHeader);
+        
+        for (const idx of femaleNeuralVoices) {
+          const opt = document.createElement("option");
+          opt.value = idx;
+          opt.textContent = voices[idx].name + " ⭐";
+          femaleGroup.appendChild(opt);
+        }
+      }
+      
+      // Add standard female voices
+      if (femaleStandardVoices.length) {
+        const stdHeader = document.createElement("option");
+        stdHeader.value = "-1";
+        stdHeader.textContent = "── Standard ──";
+        stdHeader.disabled = true;
+        femaleGroup.appendChild(stdHeader);
+        
+        for (const idx of femaleStandardVoices) {
+          const opt = document.createElement("option");
+          opt.value = idx;
+          opt.textContent = voices[idx].name;
+          femaleGroup.appendChild(opt);
+        }
+      }
+      
+      // If no female voices found, show a message
+      if (!femaleNeuralVoices.length && !femaleStandardVoices.length) {
+        const msg = document.createElement("option");
+        msg.value = "-1";
+        msg.textContent = "⚠️ No female voices detected (check Windows 11 voice settings)";
+        msg.disabled = true;
+        femaleGroup.appendChild(msg);
+      }
+      
+      select.appendChild(femaleGroup);
+      
+      // Add other English voices section
+      if (otherEnglishVoices.length) {
+        const otherGroup = document.createElement("optgroup");
+        otherGroup.label = "🔊 Other Voices";
+        for (const idx of otherEnglishVoices) {
+          const opt = document.createElement("option");
+          opt.value = idx;
+          opt.textContent = voices[idx].name + (voices[idx].localService ? " (Local)" : " (Online)");
+          otherGroup.appendChild(opt);
+        }
+        select.appendChild(otherGroup);
+      }
+      
+      // Restore saved selection or auto-select best female voice
+      const savedIndex = localStorage.getItem("tts-voice-index");
+      let selectedIndex = -1;
+      
+      if (savedIndex !== null && parseInt(savedIndex) >= 0 && parseInt(savedIndex) < voices.length) {
+        selectedIndex = parseInt(savedIndex);
+      } else if (femaleNeuralVoices.length > 0) {
+        selectedIndex = femaleNeuralVoices[0];
+      } else if (femaleStandardVoices.length > 0) {
+        selectedIndex = femaleStandardVoices[0];
+      }
+      
+      if (selectedIndex >= 0) {
+        select.value = selectedIndex;
+        ttsVoiceIndex = selectedIndex;
+        const voiceName = voices[selectedIndex].name;
+        const isNeural = voiceName.toLowerCase().includes("neural") || voiceName.toLowerCase().includes("online");
+        console.log(`TTS: Selected voice #${selectedIndex}: ${voiceName} (${isNeural ? 'Neural ⭐' : 'Standard'})`);
+      }
+      
+      // Save selection when changed
+      select.addEventListener("change", () => {
+        ttsVoiceIndex = parseInt(select.value);
+        localStorage.setItem("tts-voice-index", select.value);
+        const voices = speechSynthesis.getVoices();
+        if (voices[ttsVoiceIndex]) {
+          console.log(`TTS: Changed to voice #${ttsVoiceIndex}: ${voices[ttsVoiceIndex].name}`);
+        }
+      });
+    }
+
+    // Load voices (may need to wait for them to be available)
+    speechSynthesis.onvoiceschanged = loadTTSVoices;
+    window.addEventListener("load", loadTTSVoices);
+
+    function speakText(text, btn) {
+      // Stop any current speech
+      speechSynthesis.cancel();
+      
+      if (btn) {
+        btn.classList.add("speaking");
+        btn.innerHTML = "⏹";
+      }
+      
+      const utterance = new SpeechSynthesisUtterance(text);
+      currentUtterance = utterance;
+      
+      // Set voice if available
+      if (ttsVoiceIndex >= 0) {
+        const voices = speechSynthesis.getVoices();
+        if (voices[ttsVoiceIndex]) {
+          utterance.voice = voices[ttsVoiceIndex];
+        }
+      }
+      
+      // Optimize for natural-sounding speech
+      utterance.lang = "en-US";
+      utterance.rate = 0.95; // Slightly slower for clarity and naturalness
+      utterance.pitch = 1.05; // Subtle pitch adjustment (less robotic)
+      utterance.volume = 1.0;
+      
+      utterance.onend = () => {
+        if (btn) {
+          btn.classList.remove("speaking");
+          btn.innerHTML = "🔊";
+        }
+        currentUtterance = null;
+      };
+      
+      utterance.onerror = () => {
+        if (btn) {
+          btn.classList.remove("speaking");
+          btn.innerHTML = "🔊";
+        }
+        currentUtterance = null;
+      };
+      
+      speechSynthesis.speak(utterance);
     }
 
     // --- Voice transcription ---
