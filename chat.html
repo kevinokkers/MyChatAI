@@ -94,6 +94,9 @@
       <option value="">Loading voices…</option>
     </select>
   </div>
+  <label id="stateless-toggle">
+    <input type="checkbox" id="stateless-enabled" /> Stateless
+  </label>
   <label id="mcp-toggle">
     <input type="checkbox" id="mcp-enabled" /> Enable MCP integrations
   </label>
@@ -137,6 +140,8 @@
     const modelSel = document.getElementById("model");
     const refreshBtn = document.getElementById("refresh");
     const mcpEnabled = document.getElementById("mcp-enabled");
+  const statelessEnabled = document.getElementById("stateless-enabled");
+  let last_response_id = null;
     const mcpPanel = document.getElementById("mcp-panel");
     const integrationTypeSel = document.getElementById("integration-type");
     const configPlugin = document.getElementById("config-plugin");
@@ -292,12 +297,14 @@
       status.textContent = "Waiting for response…";
       sendBtn.disabled = true;
 
-      const body = {
+      var body = {
         model: model,
         input: text,
         context_length: 8000
       };
-
+      if (!statelessEnabled.checked && last_response_id) {
+          body.previous_response_id = last_response_id;
+        }
       if (mcpEnabled.checked) {
         body.integrations = integrations;
       }
@@ -310,6 +317,7 @@
         });
 
         const data = await res.json();
+        last_response_id = data.response_id || null;
 
         if (data.error) {
           throw new Error(data.error.message || JSON.stringify(data.error));
