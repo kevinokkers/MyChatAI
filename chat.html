@@ -97,6 +97,9 @@
   <label id="stateless-toggle">
     <input type="checkbox" id="stateless-enabled" /> Stateless
   </label>
+  <label id="stream-data-toggle">
+    <input type="checkbox" id="stream-data-enabled" /> Stream Data
+  </label>
   <label id="mcp-toggle">
     <input type="checkbox" id="mcp-enabled" /> Enable MCP integrations
   </label>
@@ -141,6 +144,7 @@
     const refreshBtn = document.getElementById("refresh");
     const mcpEnabled = document.getElementById("mcp-enabled");
   const statelessEnabled = document.getElementById("stateless-enabled");
+  const streamDataEnabled = document.getElementById("stream-data-enabled");
   let last_response_id = null;
   let streamData = false;
     const mcpPanel = document.getElementById("mcp-panel");
@@ -260,6 +264,11 @@
     // --- MCP toggle ---
     mcpEnabled.addEventListener("change", () => {
       mcpPanel.classList.toggle("open", mcpEnabled.checked);
+    });
+
+    // --- Stream Data toggle ---
+    streamDataEnabled.addEventListener("change", () => {
+      streamData = streamDataEnabled.checked;
     });
 
     // --- Chat ---
@@ -417,7 +426,7 @@
           model,
           input: text,
           context_length: 8000,
-          stream: true
+          stream: streamData
         };
         if (!statelessEnabled.checked && last_response_id) {
           body.previous_response_id = last_response_id;
@@ -728,14 +737,23 @@
       else startListening();
     });
 
-    if(this.streamData){
-      sendBtn.addEventListener("click", sendStreaming);
-      input.addEventListener("keydown", e => { if (e.key === "Enter") sendStreaming(); });
+    // Unified send handler that checks streamData setting
+    async function handleSend() {
+      if (streamData) {
+        await sendStreaming();
+      } else {
+        await send();
+      }
     }
-    else{      
-      sendBtn.addEventListener("click", send);
-      input.addEventListener("keydown", e => { if (e.key === "Enter") send(); });
-    }
+
+    // Set up event listeners
+    sendBtn.addEventListener("click", handleSend);
+    input.addEventListener("keydown", e => { 
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        handleSend();
+      }
+    });
 
     // --- Integration management ---
     function renderIntegrationsList() {
