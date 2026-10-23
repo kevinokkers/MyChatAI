@@ -355,13 +355,13 @@
       if (streamingDiv) {
         // Speak any remaining unspoken content
         if (document.getElementById("tts-enabled").checked && streamingSpokenIndex < streamingContent.length) {
-          const remaining = `Assistant: ${streamingContent.slice(streamingSpokenIndex)}`;
+          const remaining = `${streamingContent.slice(streamingSpokenIndex)}`;
           speakText(remaining, null);
         }
         // Set up the speak button with final content
         const btn = streamingDiv.querySelector(".speak-btn");
         if (btn && streamingContent) {
-          btn.onclick = () => speakText(`Assistant: ${streamingContent}`, btn);
+          btn.onclick = () => speakText(`${streamingContent}`, btn);
         }
         streamingSpokenIndex = 0; // Reset for next message
         streamingDiv = null;
@@ -420,7 +420,7 @@
             } else if (item.type === "reasoning") {
               addMsg("reasoning", `💭 Reasoning:\n${item.content}`);
             } else if (item.type === "message") {
-              const msgText = `Assistant: ${item.content}`;
+              const msgText = `${item.content}`;
               addMsg("assistant", msgText);
               // Auto-speak if toggle is enabled
               if (document.getElementById("tts-enabled").checked) {
@@ -597,7 +597,7 @@
               if (!streamingContent) streamingContent = "";
               streamingContent += msg.content;
               // Update or create the assistant message div with accumulated content
-              updateStreamingMessage(`Assistant: ${streamingContent}`);
+              updateStreamingMessage(`${streamingContent}`);
               
               // Incremental TTS: speak once we have ~15 unspoken words
               if (document.getElementById("tts-enabled").checked) {
@@ -611,7 +611,7 @@
                   if (lastPeriod > 0 && lastPeriod < unspoken.length - 2) {
                     speakEnd = streamingSpokenIndex + lastPeriod + 1; // include the period
                   }
-                  const textToSpeak = `Assistant: ${streamingContent.slice(streamingSpokenIndex, speakEnd)}`;
+                  const textToSpeak = `${streamingContent.slice(streamingSpokenIndex, speakEnd)}`;
                   streamingSpokenIndex = speakEnd;
                   speakText(textToSpeak, null);
                 }
@@ -628,7 +628,7 @@
             } else if (msg.type === "reasoning") {
               addMsg("reasoning", `💭 Reasoning:\n${msg.content}`);
             } else if (msg.type === "message") {
-              const msgText = `Assistant: ${msg.content}`;
+              const msgText = `${msg.content}`;
               addMsg("assistant", msgText);
               if (document.getElementById("tts-enabled").checked) {
                 setTimeout(() => speakText(msgText, null), 100);
@@ -796,8 +796,6 @@
     function resumeRecognition() {
       if (isTTSSpeaking) return; // Still speaking, don't restart yet
       isPausingForTTS = false;
-      // Only resume if user was actively recording (transcribing), not just clicked send button
-      if (!wasRecordingBeforeTTS) return;
       startListening();
       status.textContent = "🎤 Listening… click the mic to stop.";
     }
@@ -874,7 +872,7 @@
         if (text && isRecording) {
           status.textContent = "⏳ Silence detected, sending message…";
           stopListening();
-          send();
+          handleSend();
         }
       }, SILENCE_THRESHOLD_MS);
     }
@@ -886,10 +884,12 @@
         return;
       }
 
-      recognition = new SpeechRecognition();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = "en-US";
+     if(recognition == null){
+        recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = "en-US";
+      }
 
       let finalTranscript = "";
 
@@ -930,7 +930,6 @@
       if (silenceTimer) clearTimeout(silenceTimer);
       if (recognition) {
         recognition.stop();
-        recognition = null;
       }
       isRecording = false;
       micBtn.classList.remove("recording");
