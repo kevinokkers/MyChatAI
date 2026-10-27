@@ -1,5 +1,3 @@
-
-    
     const modelSel = document.getElementById("model");
     const refreshBtn = document.getElementById("refresh");
     const debugEnabled = document.getElementById("debug-enabled");
@@ -81,7 +79,6 @@
         btn.className = "speak-btn";
         btn.innerHTML = "🔊";
         btn.title = "Read aloud";
-        btn.addEventListener("click", () => speakText(text, btn));
         div.appendChild(btn);
       }
       
@@ -264,7 +261,7 @@
               if (reasoningContainer) {
                 const toggleBtn = reasoningContainer.querySelector(".reasoning-toggle");
                 if (toggleBtn) {
-                  toggleBtn.innerHTML = '<span class="arrow">▶</span> <span>Thinking complete</span>';
+                  toggleBtn.innerHTML = '<span class="arrow">▶</span> <span style="display:inline;">Thinking complete</span>';
                 }
                 // Auto-expand to show final content
                 const contentDiv = reasoningContainer.querySelector(".reasoning-content");
@@ -360,6 +357,31 @@
         await send();
       }
     }
+
+    // --- NEW FUNCTIONALITY: Listen Voice Button ---
+    document.getElementById("listen-voice-btn").addEventListener("click", async () => {
+      const selectedVoice = document.getElementById("voice-select").value;
+      const voiceInput = document.getElementById("voice-input");
+      const textToSpeak = voiceInput.value.trim();
+
+      if (!selectedVoice) {
+        status.textContent = "Please select a voice first.";
+        return;
+      }
+      if (!textToSpeak) {
+        status.textContent = "Please enter the text you want to hear.";
+        return;
+      }
+
+      try {
+        // Assume speakText is globally available (from tts.js)
+        await speakText(`${textToSpeak}`, null); 
+        status.textContent = `Successfully played: "${textToSpeak}" in voice: ${selectedVoice}`;
+      } catch (error) {
+        status.textContent = `Error during speech playback: ${error.message}`;
+      }
+    });
+
 
     // Set up event listeners
     sendBtn.addEventListener("click", handleSend);
