@@ -80,6 +80,7 @@
         btn.innerHTML = "🔊";
         btn.title = "Read aloud";
         div.appendChild(btn);
+        btn.onclick = () => { const msgText = btn.parentNode.firstChild.textContent; speakText(msgText, btn); };
       }
       
       log.appendChild(div);
@@ -128,7 +129,7 @@
         // Set up the speak button with final content
         const btn = streamingDiv.querySelector(".speak-btn");
         if (btn && streamingContent) {
-          btn.onclick = () => speakText(`${streamingContent}`, btn);
+          btn.onclick = () => { const msgText = btn.parentNode.firstChild.textContent; speakText(msgText, btn); };
         }
         streamingSpokenIndex = 0; // Reset for next message
         streamingDiv = null;
@@ -153,7 +154,7 @@
         const body = {
           model,
           input: text,
-          context_length: 8000,
+          context_length: 24000,
           stream: streamData,
           "integrations": [
             {
@@ -314,7 +315,7 @@
               // Finalize the streamed message
               if (streamingContent) {
                 finalizeStreamingMessage();
-                streamingContent = null;
+                //streamingContent = null;
               }
             } else if (msg.type === "tool_call") {
               const args = JSON.stringify(msg.arguments, null, 2);
