@@ -2,17 +2,17 @@
     const refreshBtn = document.getElementById("refresh");
     const debugEnabled = document.getElementById("debug-enabled");
     const mcpEnabled = document.getElementById("mcp-enabled");
-  const statelessEnabled = document.getElementById("stateless-enabled");
-  const streamDataEnabled = document.getElementById("stream-data-enabled");
-  const progressContainer = document.getElementById("progress-container");
-  const progressBar = document.getElementById("progress-bar");
-  const progressText = document.getElementById("progress-text");
-  let last_response_id = null;
-  let streamData = true;
+    const statelessEnabled = document.getElementById("stateless-enabled");
+    const streamDataEnabled = document.getElementById("stream-data-enabled");
+    const progressContainer = document.getElementById("progress-container");
+    const progressBar = document.getElementById("progress-bar");
+    const progressText = document.getElementById("progress-text");
+    let last_response_id = null;
+    let streamData = true;
     const mcpPanel = document.getElementById("mcp-panel");
     const integrationTypeSel = document.getElementById("integration-type");
     const configPlugin = document.getElementById("config-plugin");
-    const configMcpServer = document.getElementById("config-mcp_server");
+    const configMcpServer = document.getElementById("config-ephemeral_mcp");
     const addIntegrationBtn = document.getElementById("add-integration");
     const integrationsListEl = document.getElementById("integrations-list");
 
@@ -23,7 +23,7 @@
     integrationTypeSel.addEventListener("change", () => {
       const val = integrationTypeSel.value;
       configPlugin.classList.toggle("open", val === "plugin");
-      configMcpServer.classList.toggle("open", val === "mcp_server");
+      configMcpServer.classList.toggle("open", val === "ephemeral_mcp");
     });
     const log = document.getElementById("log");
     const input = document.getElementById("input");
@@ -154,7 +154,13 @@
           model,
           input: text,
           context_length: 8000,
-          stream: streamData
+          stream: streamData,
+          "integrations": [
+            {
+              "type": "plugin",
+              "id": "mcp/websearch"
+            }
+          ]
         };
         if (!statelessEnabled.checked && last_response_id) {
           body.previous_response_id = last_response_id;
@@ -162,9 +168,10 @@
         if (mcpEnabled.checked) {
           body.integrations = integrations;
         }
+        const headers = loadHeaders();
         const res = await fetch(`${base}/api/v1/chat`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers,
           body: JSON.stringify(body)
         });
         if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
@@ -401,7 +408,7 @@
         let desc = "";
         if (item.type === "plugin") {
           desc = `🔌 Plugin: ${item.id} — tools: ${(item.allowed_tools || []).join(", ")}`;
-        } else if (item.type === "mcp_server") {
+        } else if (item.type === "ephemeral_mcp") {
           desc = `⚙️ MCP Server: ${item.name}${item.url ? " @ " + item.url : ""}`;
         }
         const div = document.createElement("div");
@@ -423,13 +430,13 @@
         if (!id) { status.textContent = "Please enter a Plugin ID."; return; }
         entry.id = id;
         entry.allowed_tools = toolsRaw ? toolsRaw.split(/[,\s]+/).filter(Boolean) : [];
-      } else if (type === "mcp_server") {
-        const name = document.getElementById("mcp-server-name").value.trim();
-        const url = document.getElementById("mcp-server-url").value.trim();
-        if (!name) { status.textContent = "Please enter a Server name."; return; }
-        entry.name = name;
-        if (url) entry.url = url;
-      }
+        } else if (type === "ephemeral_mcp") {
+          const name = document.getElementById("mcp-server-name").value.trim();
+          const url = document.getElementById("mcp-server-url").value.trim();
+          if (!name) { status.textContent = "Please enter a Server name."; return; }
+          entry.name = name;
+          if (url) entry.url = url;
+        }
 
       integrations.push(entry);
       renderIntegrationsList();

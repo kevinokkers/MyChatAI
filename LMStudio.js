@@ -1,6 +1,11 @@
 
 
     // --- Model list ---
+
+    function loadHeaders() {
+      return { "Content-Type": "application/json", "Authorization": "Bearer sk-lm-e0NnlLDD:vNPMNHQq4tKS3k0xovUy" }; 
+    }
+
     async function loadModels() {
       modelSel.innerHTML = '<option>Loading…</option>';
       status.textContent = 'Connecting to LM Studio…';
@@ -67,10 +72,12 @@
         status.textContent = `Model list parse error: ${e.message}`;
       }
     }
-   
 
     async function fetchModelsFromUrl(base) {
-      const res = await fetch(`${base}/api/v1/models`);
+      const headers = loadHeaders();
+      const res = await fetch(`${base}/api/v1/models`, {
+         headers,
+      });
       if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
       return await res.json();
     }

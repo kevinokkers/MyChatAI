@@ -88,7 +88,8 @@
   <h1>LM Studio Chat <small style="font-size:0.6em;color:#888">+ MCP</small></h1>
 
   <div class="controls">
-    <input id="server-url" value="http://localhost:1235" placeholder="http://localhost:1235" title="LM Studio API Base URL" />
+    <input id="server-url" value="http://localhost:1234" placeholder="http://localhost:1234" title="LM Studio API Base URL" />
+    <!-- bionic <input id="server-url" value="http://localhost:1234" placeholder="http://localhost:1234" title="LM Studio API Base URL" />-->
     <select id="model"><option>Loading models…</option></select>
     <button id="refresh" title="Reload Models">↻</button>
   </div>
@@ -123,7 +124,7 @@
       <select id="integration-type">
         <option value="">— Select type —</option>
         <option value="plugin">Plugin (e.g. playwright)</option>
-        <option value="mcp_server" selected>Custom MCP Server</option>
+        <option value="ephemeral_mcp" selected>Custom MCP Server</option>
       </select>
       <!-- Plugin config -->
       <div id="config-plugin" class="integration-config">
@@ -131,7 +132,7 @@
         <textarea id="plugin-tools" placeholder='Allowed tools, comma-separated (e.g. browser_navigate,browser_click)'></textarea>
       </div>
       <!-- MCP Server config -->
-      <div id="config-mcp_server" class="integration-config open">
+      <div id="config-ephemeral_mcp" class="integration-config open">
         <input type="text" id="mcp-server-name" placeholder="Server name (e.g. WebSearch)" value="WebSearch" />
         <input type="text" id="mcp-server-url" placeholder="MCP Server URL (e.g. http://localhost:3001)" />
       </div>
