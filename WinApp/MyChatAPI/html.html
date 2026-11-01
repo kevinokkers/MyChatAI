@@ -1,0 +1,77 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+        }
+
+        #status {
+            color: #666;
+            margin-bottom: 10px;
+        }
+
+        #interim {
+            color: #999;
+            font-style: italic;
+        }
+
+        #final {
+            color: #000;
+        }
+
+        button {
+            padding: 8px 16px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <button id="startBtn">Start Listening</button>
+    <button id="stopBtn">Stop</button>
+    <div id="status">Idle</div>
+    <div id="interim"></div>
+    <div id="final"></div>
+
+    <script>
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = 'en-US';
+
+        const statusEl = document.getElementById('status');
+        const interimEl = document.getElementById('interim');
+        const finalEl = document.getElementById('final');
+
+        recognition.onstart = () => { statusEl.textContent = 'Listening...'; };
+        recognition.onend = () => { statusEl.textContent = 'Stopped'; };
+
+        recognition.onresult = (event) => {
+            let interim = '';
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+                const result = event.results[i][0].transcript;
+                if (event.results[i].isFinal) {
+                    finalEl.textContent += result + ' ';
+                    // Send final result to C#
+                    window.chrome.webview.postMessage(
+                        JSON.stringify({ type: 'final', text: result })
+                    );
+                } else {
+                    interim += result;
+                }
+            }
+            interimEl.textContent = interim;
+        };
+
+        recognition.onerror = (event) => {
+            statusEl.textContent = 'Error: ' + event.error;
+        };
+
+        document.getElementById('startBtn').onclick = () => recognition.start();
+
+        window.stopRecognition = () => recognition.stop();
+    </script>
+</body>
+</html>
