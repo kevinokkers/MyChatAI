@@ -144,6 +144,8 @@
     }
 
     function speakText(text, btn) {
+    // Existing implementation
+
       // Stop any current speech
       speechSynthesis.cancel();
       
@@ -199,6 +201,28 @@
       };
       
       speechSynthesis.speak(utterance);
+    }
+
+    // --- Stop TTS helper ---
+    function stopTTS() {
+      if (!isTTSSpeaking) return;
+      speechSynthesis.cancel();
+      currentUtterance = null;
+      isTTSSpeaking = false;
+      // Reset button state if any speak button was active
+      const speakBtn = document.querySelector('.speak-btn.speaking');
+      if (speakBtn) {
+        speakBtn.classList.remove('speaking');
+        speakBtn.innerHTML = '🔊';
+      }
+      // Resume mic after stopping TTS
+      resumeRecognition();
+    }
+
+    // Attach handler to new Stop button
+    const stopTtsBtn = document.getElementById('stop-tts');
+    if (stopTtsBtn) {
+      stopTtsBtn.addEventListener('click', stopTTS);
     }
 
     // --- Voice transcription ---
