@@ -123,8 +123,18 @@
       if (streamingDiv) {
         // Speak any remaining unspoken content
         if (document.getElementById("tts-enabled").checked && streamingSpokenIndex < streamingContent.length) {
-          const remaining = `${streamingContent.slice(streamingSpokenIndex)}`;
-          speakText(remaining, null);
+          
+          const speakAfterComplete = document.getElementById("speak-after-complete").checked;
+          if(!isTTSSpeaking){
+            if (speakAfterComplete){
+              const remaining = `${streamingContent.slice(0, streamingContent.length)}`;
+              speakText(remaining, null);
+            }
+            else{
+              const remaining = `${streamingContent.slice(streamingSpokenIndex)}`;
+              speakText(remaining, null);
+            }            
+          }
         }
         // Set up the speak button with final content
         const btn = streamingDiv.querySelector(".speak-btn");
@@ -308,7 +318,8 @@
                   }
                   const textToSpeak = `${streamingContent.slice(streamingSpokenIndex, speakEnd)}`;
                   streamingSpokenIndex = speakEnd;
-                  speakText(textToSpeak, null);
+                  const speakAfterComplete = document.getElementById("speak-after-complete").checked;
+                  if (!speakAfterComplete && !isTTSSpeaking) speakText(textToSpeak, null);
                 }
               }
             } else if (msg.type === "message.end") {
