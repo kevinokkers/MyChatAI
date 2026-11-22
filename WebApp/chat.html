@@ -1,3 +1,4 @@
+<?xml version="1.0"?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5,12 +6,12 @@
   <title>LM Studio Chat + MCP</title>
   <style>
     * { box-sizing: border-box; }
-    body { font-family: system-ui, sans-serif; max-width: 750px; margin: 2rem auto; padding: 0 1rem; }
+    body { background:#f9fafb; color:#333; font-family: system-ui, sans-serif; max-width: 750px; margin: 2rem auto; padding: 0 1rem; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
     .controls { display: flex; gap: 0.5rem; margin-bottom: 0.5rem; flex-wrap: wrap; }
     select, input, button { font-size: 0.95rem; padding: 0.45rem 0.6rem; }
     #server-url { width: 200px; }
     select { flex: 1; min-width: 200px; }
-    button { cursor: pointer; background: #333; color: #fff; border: none; border-radius: 4px; }
+    button { cursor:pointer;background:#0057b7;color:white;border:none;border-radius:5px;padding:0.45rem 1rem;font-weight:bold;transition:background 200ms ease;}
     button:hover { background: #555; }
     button:disabled { background: #999; cursor: not-allowed; }
     #mcp-toggle { display: flex; align-items: center; gap: 0.4rem; font-size: 0.9rem; margin-bottom: 0.5rem; }
@@ -32,9 +33,9 @@
     .integrations-list { margin-top: 0.5rem; }
     .integrations-list .item { background: #f6f8fa; border: 1px solid #ddd; border-radius: 4px; padding: 0.4rem 0.6rem; margin-bottom: 0.3rem; font-size: 0.85rem; display: flex; justify-content: space-between; align-items: center; }
     .integrations-list .item .remove-btn { background: none; border: none; color: #c0392b; cursor: pointer; font-size: 1.1rem; padding: 0 0.3rem; }
-    #log { border: 1px solid #ccc; border-radius: 8px; padding: 1rem; min-height: 200px; margin-bottom: 0.75rem; white-space: pre-wrap; }
+    #log { border: 1px solid #ccc; border-radius: 8px; padding: 1rem; min-height: 600px; margin-bottom: 0.75rem; white-space: pre-wrap; }
     .msg { margin-bottom: 0.6rem; }
-    .msg.user { color: #0057b7; font-weight: 500; }
+    .msg.user { color: #0057b7; font-weight: 500; text-align:right; }
     .msg.assistant { color: #1a1a1a; }
     .msg.reasoning { color: #555; font-size: 0.85rem; background: #f6f8fa; border-left: 3px solid #888; padding: 0.4rem 0.6rem; border-radius: 3px; }
     .reasoning-container { margin-bottom: 0.6rem; }
@@ -82,7 +83,7 @@
       50% { box-shadow: 0 0 0 8px rgba(192,57,43,0); }
     }
     #status { font-size: 0.85rem; color: #888; margin-top: 0.4rem; }
-  </style>
+  details#settings-details{border:1px solid #ccc;border-radius:6px;padding:.75rem;background:#fff;}\n</style>
 </head>
 <body>
   <h1>LM Studio Chat <small style="font-size:0.6em;color:#888">+ MCP</small></h1>
@@ -94,55 +95,58 @@
     <button id="refresh" title="Reload Models">↻</button>
   </div>
 
-  <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;margin-top:0.3rem">
-    <label id="tts-toggle">
-      <input type="checkbox" id="tts-enabled" checked /> 🔊 Auto-speak responses
-    </label>
-    <select id="voice-select" title="Select voice">
-      <option value="">Loading voices…</option>
-    </select>
-    <input type="text" id="voice-input" placeholder="Type text to hear" style="flex: 1; min-width: 200px; padding: 0.45rem 0.6rem;">
-    <button id="listen-voice-btn" title="Hear selected voice">▶️</button>
-  </div>
-  <label id="stateless-toggle">
-    <input type="checkbox" id="speak-after-complete" /> Speak After Complete
-    <input type="checkbox" id="stateless-enabled" /> Stateless
-  </label>
-  <label id="stream-data-toggle">
-    <input type="checkbox" id="stream-data-enabled" checked/> Stream Data
-  </label>
-  <label id="debug-toggle">
-    <input type="checkbox" id="debug-enabled" /> Debug (console log)
-  </label>
-  <label id="mcp-toggle">
-    <input type="checkbox" id="mcp-enabled" /> Enable MCP integrations
-  </label>
-  <div id="mcp-panel">
-    <label>Integrations:</label>
-
-    <!-- Add integration row -->
-    <div class="integration-row">
-      <select id="integration-type">
-        <option value="">— Select type —</option>
-        <option value="plugin">Plugin (e.g. playwright)</option>
-        <option value="ephemeral_mcp" selected>Custom MCP Server</option>
+  <details id="settings-details" style="margin-bottom:0.75rem;">
+    <summary>Settings</summary>
+    <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;margin-top:0.3rem">
+      <label id="tts-toggle">
+        <input type="checkbox" id="tts-enabled" checked /> 🔊 Auto-speak responses
+      </label>
+      <select id="voice-select" title="Select voice">
+        <option value="">Loading voices…</option>
       </select>
-      <!-- Plugin config -->
-      <div id="config-plugin" class="integration-config">
-        <input type="text" id="plugin-id" placeholder="Plugin ID (e.g. mcp/playwright)" />
-        <textarea id="plugin-tools" placeholder='Allowed tools, comma-separated (e.g. browser_navigate,browser_click)'></textarea>
-      </div>
-      <!-- MCP Server config -->
-      <div id="config-ephemeral_mcp" class="integration-config open">
-        <input type="text" id="mcp-server-name" placeholder="Server name (e.g. WebSearch)" value="WebSearch" />
-        <input type="text" id="mcp-server-url" placeholder="MCP Server URL (e.g. http://localhost:3001)" />
-      </div>
-      <button id="add-integration">+ Add</button>
+      <input type="text" id="voice-input" placeholder="Type text to hear" style="flex: 1; min-width: 200px; padding: 0.45rem 0.6rem;">
+      <button id="listen-voice-btn" title="Hear selected voice">▶️</button>
     </div>
+    <label id="stateless-toggle">
+      <input type="checkbox" id="speak-after-complete" checked /> Speak After Complete
+      <input type="checkbox" id="stateless-enabled" /> Stateless
+    </label>
+    <label id="stream-data-toggle">
+      <input type="checkbox" id="stream-data-enabled" checked/> Stream Data
+    </label>
+    <label id="debug-toggle">
+      <input type="checkbox" id="debug-enabled" /> Debug (console log)
+    </label>
+    <label id="mcp-toggle">
+      <input type="checkbox" id="mcp-enabled" /> Enable MCP integrations
+    </label>
+    <div id="mcp-panel">
+      <label>Integrations:</label>
 
-    <!-- List of added integrations -->
-    <div class="integrations-list" id="integrations-list"></div>
-  </div>
+      <!-- Add integration row -->
+      <div class="integration-row">
+        <select id="integration-type">
+          <option value="">— Select type —</option>
+          <option value="plugin">Plugin (e.g. playwright)</option>
+          <option value="ephemeral_mcp" selected>Custom MCP Server</option>
+        </select>
+        <!-- Plugin config -->
+        <div id="config-plugin" class="integration-config">
+          <input type="text" id="plugin-id" placeholder="Plugin ID (e.g. mcp/playwright)" />
+          <textarea id="plugin-tools" placeholder='Allowed tools, comma-separated (e.g. browser_navigate,browser_click)'></textarea>
+        </div>
+        <!-- MCP Server config -->
+        <div id="config-ephemeral_mcp" class="integration-config open">
+          <input type="text" id="mcp-server-name" placeholder="Server name (e.g. WebSearch)" value="WebSearch" />
+          <input type="text" id="mcp-server-url" placeholder="MCP Server URL (e.g. http://localhost:3001)" />
+        </div>
+        <button id="add-integration">+ Add</button>
+      </div>
+
+      <!-- List of added integrations -->
+      <div class="integrations-list" id="integrations-list"></div>
+    </div>
+  </details>
 
   <div id="log"></div>
   <div class="input-row">
@@ -165,3 +169,4 @@
 <script src="chat.js"></script>
 </body>
 </html>
+<EOF>

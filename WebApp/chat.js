@@ -284,8 +284,8 @@
                 // Auto-expand to show final content
                 const contentDiv = reasoningContainer.querySelector(".reasoning-content");
                 if (contentDiv && !contentDiv.classList.contains("visible")) {
-                  contentDiv.classList.add("visible");
-                  toggleBtn.classList.add("expanded");
+                  // contentDiv.classList.add("visible");
+                  // toggleBtn.classList.add("expanded");
                 }
                 reasoningContainer = null;
               }
@@ -370,6 +370,10 @@
 
     // Unified send handler that checks streamData setting
     async function handleSend() {
+      const userText = input.value.trim();
+      if (userText) {
+        addMsg("user", userText);
+      }
       if (streamData) {
         await sendStreaming();
       } else {
