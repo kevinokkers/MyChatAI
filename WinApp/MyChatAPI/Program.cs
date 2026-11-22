@@ -1,5 +1,10 @@
+using System.Runtime.InteropServices;
+using System.Threading;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement.TaskbarClock;
+
 namespace MyChatAPI
 {
+
     internal static class Program
     {
         /// <summary>
@@ -11,7 +16,9 @@ namespace MyChatAPI
             // To customize application configuration such as set high DPI settings or default font,
             // see https://aka.ms/applicationconfiguration.
             ApplicationConfiguration.Initialize();
-            Application.Run(new Form1());
+            Application.Run(new OverlayForm());
         }
+
+        
     }
 }
