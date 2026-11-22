@@ -256,7 +256,7 @@
                 // Toggle button
                 const toggleBtn = document.createElement("button");
                 toggleBtn.className = "reasoning-toggle";
-                toggleBtn.innerHTML = '<span class="arrow">▶</span> <span>Thinking...</span>';
+                toggleBtn.innerHTML = '<span class="arrow" style="font-size:.7em;">▶</span> <span style="font-size:.7em;">reasoning</span>';
                 toggleBtn.addEventListener("click", () => {
                   toggleBtn.classList.toggle("expanded");
                   contentDiv.classList.toggle("visible");
@@ -279,7 +279,7 @@
               if (reasoningContainer) {
                 const toggleBtn = reasoningContainer.querySelector(".reasoning-toggle");
                 if (toggleBtn) {
-                  toggleBtn.innerHTML = '<span class="arrow">▶</span> <span style="display:inline;">Thinking complete</span>';
+                  toggleBtn.innerHTML = '<span class="arrow" style="font-size:.7em;">▶</span> <span style="display:inline; font-size:.7em; font-weight:normal;">reasoned</span>';
                 }
                 // Auto-expand to show final content
                 const contentDiv = reasoningContainer.querySelector(".reasoning-content");
