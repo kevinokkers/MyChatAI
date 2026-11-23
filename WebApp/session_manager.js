@@ -1,7 +1,5 @@
-import { readFileSync, writeFileSync, existsSync } from "fs";
-import { join } from "path";
-
-const SESSION_FILE = join(process.cwd(), "bionic-session.json");
+// Use browser localStorage instead of filesystem
+const SESSION_KEY = "bionic-session";
 
 /**
  * Save current conversation state to a JSON file.
@@ -14,7 +12,7 @@ function saveSession(chat, messages) {
     updatedAt: new Date().toISOString(),
     messages,
   };
-  writeFileSync(SESSION_FILE, JSON.stringify(state, null, 2));
+  localStorage.setItem(SESSION_KEY, JSON.stringify(state));
 }
 
 /**
@@ -22,16 +20,37 @@ function saveSession(chat, messages) {
  * Returns the loaded state, or null if no file exists.
  */
 function loadSession() {
-  if (!existsSync(SESSION_FILE)) return null;
-  return JSON.parse(readFileSync(SESSION_FILE, "utf-8"));
+  const data = localStorage.getItem(SESSION_KEY);
+  if (!data) return null;
+  return JSON.parse(data);
 }
 
 /**
  * Clear the saved session file.
  */
 function clearSession() {
-  if (existsSync(SESSION_FILE)) {
-    const { unlinkSync } = require("fs");
-    unlinkSync(SESSION_FILE);
+  localStorage.removeItem(SESSION_KEY);
+}
+
+/**
+ * Append a new assistant response (and the preceding user message) to the stored session.
+ * @param {string|null} responseId - Identifier of the assistant response.
+ * @param {Array<{role: string, content: string}>} messages - Array containing the user and assistant messages that just occurred.
+ */
+function appendSession(responseId, messages) {
+  const existing = loadSession();
+  let state;
+  if (existing) {
+    state = existing;
+    // Append new messages to existing array
+    state.messages.push(...messages);
+  } else {
+    // No prior session, create a fresh one
+    state = {responseId: null, model: null, updatedAt: null, messages: []};
+    state.messages.push(...messages);
   }
+  // Update with latest response id and timestamp
+  state.responseId = responseId;
+  state.updatedAt = new Date().toISOString();
+  localStorage.setItem(SESSION_KEY, JSON.stringify(state));
 }

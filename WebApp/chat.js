@@ -19,6 +19,9 @@
     // Stored integrations array (built from the UI)
     let integrations = [];
 
+    // Array to keep chat messages for persistence
+    let chatMessages = [];
+
     // Show/hide config panels based on selected type
     integrationTypeSel.addEventListener("change", () => {
       const val = integrationTypeSel.value;
@@ -69,6 +72,10 @@
 
     // --- Chat ---
     function addMsg(cls, text) {
+      // Record message into chatMessages if role user or assistant
+      const roleMap = {user: "user", assistant: "assistant"};
+      const role = roleMap[cls] || null;
+      if (role) chatMessages.push({role, content: text});
       const div = document.createElement("div");
       div.className = `msg ${cls}`;
       div.textContent = text;
@@ -166,12 +173,12 @@
           input: text,
           context_length: 24000,
           stream: streamData,
-          "integrations": [
-            {
-              "type": "plugin",
-              "id": "mcp/websearch"
-            }
-          ]
+          //"integrations": [
+           // {
+            //  "type": "plugin",
+             // "id": "mcp/websearch"
+           // }
+          //]
         };
         if (!statelessEnabled.checked && last_response_id) {
           body.previous_response_id = last_response_id;
@@ -371,11 +378,15 @@
     // Unified send handler that checks streamData setting
     async function handleSend() {
       const userText = input.value.trim();
+      let assistantText = "";
       if (userText) {
         addMsg("user", userText);
       }
       if (streamData) {
         await sendStreaming();
+        // after streaming, streamingContent holds assistant reply
+        assistantText = streamingContent || "";
+        appendSession(last_response_id, [{role:"user", content:userText}, {role:"assistant", content:assistantText}]);
       } else {
         await send();
       }
@@ -416,6 +427,38 @@
     });
 
     // --- Integration management ---
+    const newSessionBtn = document.getElementById("new-session");
+    if (newSessionBtn) {
+      newSessionBtn.addEventListener("click", () => {
+        const msgs = [];
+        for (const el of log.children) {
+          if (!el.classList.contains("msg")) continue;
+          const role = el.classList.contains("assistant") ? "assistant" : "user";
+          const content = el.textContent.trim();
+          const btn = el.querySelector(".speak-btn");
+          let txt = content;
+          if (btn) { txt = content.replace(btn.innerText, "").trim(); }
+          msgs.push({role, content: txt});
+        }
+        log.innerHTML = "";
+        chatMessages = [];
+        last_response_id = null;
+        input.value = "";
+        status.textContent = "";
+        streamingDiv = null;
+        streamingSpokenIndex = 0;
+
+        // Prepare state and save session via session_manager
+        const chatState = {
+          responseId: null,
+          model: modelSel.value,
+        };
+        // Extract messages from current log
+        // Save session via session_manager
+        saveSession(chatState, msgs);
+      });
+    }
+
     function renderIntegrationsList() {
       integrationsListEl.innerHTML = "";
       if (!integrations.length) return;
