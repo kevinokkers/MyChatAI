@@ -459,6 +459,43 @@
       });
     }
 
+    // Load session button logic
+    const loadSessionBtn = document.getElementById("load-session");
+    if (loadSessionBtn) {
+      loadSessionBtn.addEventListener("click", () => {
+        const state = loadSession();
+        if (!state) {
+          alert('No session found');
+          return;
+        }
+        // Reset UI
+        log.innerHTML = "";
+        chatMessages = [];
+        last_response_id = null;
+        input.value = "";
+        status.textContent = "";
+        streamingDiv = null;
+        streamingSpokenIndex = 0;
+        // set model selector
+        if (state.model) {
+          const options = Array.from(modelSel.options);
+          if (!options.find(o => o.value === state.model)) {
+            const opt = document.createElement('option');
+            opt.textContent = state.model;
+            opt.value = state.model;
+            modelSel.appendChild(opt);
+          }
+          modelSel.value = state.model;
+        }
+        // Restore last_response_id for continued conversation
+        if (state.responseId) {
+          last_response_id = state.responseId;
+        }
+        // render messages
+        state.messages.forEach(msg => addMsg(msg.role, msg.content));
+      });
+    }
+
     function renderIntegrationsList() {
       integrationsListEl.innerHTML = "";
       if (!integrations.length) return;
